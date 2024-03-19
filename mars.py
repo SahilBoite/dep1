@@ -25,7 +25,6 @@ from typing import Union
 import speech_recognition as sr
 from datetime import datetime
 import spacy  # Added for Named Entity Recognition (NER)
-from config import GOOGLE_API_KEY
 import zipfile
 import rarfile
 import markdown
