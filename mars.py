@@ -17,7 +17,7 @@ from langchain.chains import ConversationalRetrievalChain
 from langchain.memory import ConversationBufferMemory
 from multiprocessing import Pool
 import cv2
-import easyocr
+import pytesseract
 import numpy as np
 from langchain_core.messages import HumanMessage, AIMessage
 import logging
@@ -303,11 +303,15 @@ def extract_text_from_rust(rs_file):
 def extract_text_from_image(image_file):
     text = ""
     try:
-        reader = easyocr.Reader(['en'])  # Initialize EasyOCR reader for English text
         image = cv2.imdecode(np.frombuffer(image_file.read(), np.uint8), cv2.IMREAD_COLOR)
-        result = reader.readtext(image)
-        for detection in result:
-            text += detection[1] + "\n"
+        gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+        
+        # Perform any preprocessing on the image using OpenCV (optional)
+        # For example, you can apply thresholding, denoising, or other techniques
+        
+        # Apply Tesseract OCR to extract text from the image
+        custom_config = r'--oem 3 --psm 6'  # Customize Tesseract OCR parameters if needed
+        text = pytesseract.image_to_string(gray, config=custom_config)
     except Exception as e:
         handle_file_processing_error("image", e)
     return text
@@ -531,6 +535,9 @@ def main():
                     vector_store = get_vector_store(text_chunks)
                     st.session_state.conversation = get_conversational_chain(vector_store)
                     st.session_state.files_uploaded = True
+                    if st.session_state.conversation is None:
+                        st.session_state.files_uploaded = False
+                        return
                     st.success("Processing Done!")
             else:
                 st.warning("Please upload at least one file.")
@@ -558,10 +565,19 @@ def get_vector_store(text_chunks):
 
 # Function to create a conversational chain
 def get_conversational_chain(vector_store):
-    llm = GooglePalm()
-    memory = ConversationBufferMemory(memory_key="chat_history", return_messages=True)
-    conversation_chain = ConversationalRetrievalChain.from_llm(llm=llm, retriever=vector_store.as_retriever(), memory=memory)
-    return conversation_chain
+    try:
+        llm = GooglePalm()
+        memory = ConversationBufferMemory(memory_key="chat_history", return_messages=True)
+        conversation_chain = ConversationalRetrievalChain.from_llm(llm=llm, retriever=vector_store.as_retriever(), memory=memory)
+        return conversation_chain
+    except NotImplementedError as e:
+        st.warning("Check your Internet connection and Please try again by tapping on 'NEXT'")
+        return None
+    except Exception as e:
+        handle_model_interaction_error(e)
+        st.error("Please try again by tapping on 'NEXT'")
+        return None
+
 
 def user_input(user_question):
     if st.session_state.conversation:
