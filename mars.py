@@ -17,7 +17,7 @@ from langchain.chains import ConversationalRetrievalChain
 from langchain.memory import ConversationBufferMemory
 from multiprocessing import Pool
 import cv2
-import pytesseract
+import easyocr
 import numpy as np
 from langchain_core.messages import HumanMessage, AIMessage
 import logging
@@ -32,6 +32,8 @@ from textract import process
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.decomposition import LatentDirichletAllocation
 from transformers import pipeline
+
+
  
 os.environ['GOOGLE_API_KEY'] = 'AIzaSyA02NGYXBUx66PlOdM4DJvgMcAEa9Sv4FI' #put your GOOGLE API KEY here 
 
@@ -297,16 +299,19 @@ def extract_text_from_rust(rs_file):
         handle_file_processing_error("Rust", e)
     return text
 
-# Function to extract text from a Images
+
 def extract_text_from_image(image_file):
     text = ""
     try:
+        reader = easyocr.Reader(['en'])  # Initialize EasyOCR reader for English text
         image = cv2.imdecode(np.frombuffer(image_file.read(), np.uint8), cv2.IMREAD_COLOR)
-        gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-        text = pytesseract.image_to_string(gray)
+        result = reader.readtext(image)
+        for detection in result:
+            text += detection[1] + "\n"
     except Exception as e:
         handle_file_processing_error("image", e)
     return text
+
 
 # Function to extract text from a Markdown file
 def extract_text_from_md(md_file):
