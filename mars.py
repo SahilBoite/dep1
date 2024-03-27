@@ -33,7 +33,6 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.decomposition import LatentDirichletAllocation
 from transformers import pipeline
 
-
  
 os.environ['GOOGLE_API_KEY'] = 'AIzaSyA02NGYXBUx66PlOdM4DJvgMcAEa9Sv4FI' #put your GOOGLE API KEY here 
 
@@ -94,6 +93,7 @@ def extract_text(file): # Added for various file types text extraction
     elif file_extension == "rar":
         text = extract_text_from_rar(file)
     return text
+
 
 # Function to extract text from a XML file
 def extract_text_from_xml(xml_file):
@@ -348,6 +348,18 @@ def extract_text_from_zip(zip_file):
         handle_file_processing_error("ZIP", e)
     return text
 
+
+def is_resume_document(text):
+    # Technique 1: Keyword Matching
+    resume_keywords = ["Objective", "Education", "Experience", "Skills", "Certifications", "Projects", "GitHub", "LinkedIn", "Contact Information"]
+    if any(keyword in text for keyword in resume_keywords):
+        return True
+    
+    # Technique 2: Document Structure
+    required_sections = ["Summary", "Education", "Experience", "Skills"]
+    if all(section in text for section in required_sections):
+        return True
+
 # Function to extract text from a Rar file
 def extract_text_from_rar(rar_file):
     text = ""
@@ -406,9 +418,7 @@ USER ASKED: {prompt}
         if data_type == "data":
             solution = kwargs.get('solution')
             if len(solution.split()) < 50:
-                pre_prompt += f"HERE IS THE CODE YOU ASKED FOR: {solution}\n"
-                pre_prompt += f"ADD MORE DETAILS TO THE SOLUTION, PROVIDE EXAMPLES, OR EXPLAIN THE LOGIC FURTHER."
-            pre_prompt += f"""
+                pre_prompt += f"""
 ENHANCE THE ANSWER BY:
 - Providing concrete examples or real-world scenarios to illustrate concepts effectively.
 - Structuring the response logically with bullet points or step-by-step explanations for clarity.
@@ -418,6 +428,7 @@ ENHANCE THE ANSWER BY:
 """
 
         elif data_type == "code":
+
             solution = kwargs.get('solution')
             if len(solution.split()) < 15:
                 pre_prompt += f"HERE IS THE CODE YOU ASKED FOR: {solution}\n"
@@ -457,6 +468,19 @@ EXPAND ON THE ANSWER BY:
 - Exploring the contextual background of the audio source for deeper understanding.
 - Proposing follow-up inquiries or discussion points to sustain engagement.
 - Relating the audio content to pertinent themes or contemporary issues for relevance.
+"""
+        elif data_type == "pdf":
+            pdf_content = kwargs.get('pdf_content')
+            if len(solution.split()) < 15:
+                pre_prompt += f"HERE IS THE CONTENT OF THE PDF: {solution}\n"
+                pre_prompt += f"PROVIDE FURTHER ANALYSIS OR CONTEXTUAL INFORMATION FOR A MORE IN-DEPTH DISCUSSION."
+            pre_prompt += f"""
+ENHANCE THE ANSWER BY:
+- Conducting a comprehensive analysis or critique of the PDF contents.
+- Identifying and elaborating on key findings or arguments supported by evidence.
+- Exploring potential applications or implications across different domains.
+- Inviting discussion on related topics or avenues for further research.
+- Offering supplementary references or resources for deeper exploration.
 """
 
         elif data_type == "pdf":
@@ -500,6 +524,23 @@ EXPAND THE ANSWER BY:
 - Stimulating curiosity and critical thinking with probing questions or hypotheses.
 - Proposing potential applications or implications for practical relevance.
 """
+        elif data_type == "resume":
+            resume_content = kwargs.get('resume_content')
+            pre_prompt += f"""
+-Hey MARS Act Like a skilled or very experience ATS(Application Tracking System) and evaluate the resume content shared by the user and provide insightful feedback on:
+- if there is mention of Github, LinkedIn or Contact details then its resume and judge it on following paramenters 
+- Here are 10 parameters that can be used to judge resumes for tech jobs, each with a weight of 10 points out of a total of 100 points do that when resume is deted:
+- Technical Skills (10 points): Evaluate the breadth and depth of the applicant's technical skills, including programming languages, frameworks, tools, and technologies relevant to the specific tech role or industry.
+- Projects and Contributions (10 points): Assess the presence and quality of any notable projects, contributions to open-source projects, personal projects, or coding samples showcased in the resume, demonstrating practical experience and problem-solving abilities.
+- Education and Certifications (10 points): Evaluate the relevance and quality of the applicant's educational background, including degrees, majors, relevant coursework, and any industry-recognized certifications or training in technical domains.
+- Problem-Solving and Analytical Skills (10 points): Assess the applicant's ability to demonstrate problem-solving and analytical skills through the description of their work experiences, projects, or accomplishments, highlighting their ability to tackle complex technical challenges.
+- Version Control and Collaboration (10 projects): Evaluate the applicant's familiarity and experience with version control systems (e.g., Git) and collaboration tools (e.g., GitHub, Bitbucket), which are essential for software development and teamwork in tech environments.
+- Technical Writing and Documentation (10 points): Assess the applicant's ability to communicate technical concepts effectively through clear and concise writing, as demonstrated in their resume, cover letter, or any technical writing samples provided.
+- Continuous Learning and Professional Development (10 points): Evaluate the applicant's commitment to continuous learning and professional development, as evidenced by their participation in relevant workshops, conferences, online courses, or personal projects aimed at expanding their technical knowledge.
+- Quantifiable Achievements (10 points): Assess the presence and quality of quantifiable achievements or measurable results mentioned in the resume, demonstrating the applicant's impact and value in technical roles or projects.
+- Attention to Detail (10 points): Evaluate the applicant's attention to detail, as demonstrated by the accuracy, consistency, and professionalism of their resume formatting, language use, and overall presentation.
+- Industry and Domain Knowledge (10 points): Assess the applicant's understanding and familiarity with the specific industry or domain related to the tech role, including relevant buzzwords, trends, and best practices, showcasing their ability to align their technical skills with the business needs.
+"""           
     return pre_prompt
 
 # Main Function for M.A.R.S
@@ -553,7 +594,7 @@ def main():
 
 # Function to split text into chunks
 def get_text_chunks(text):
-    text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
+    text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=300)
     chunks = text_splitter.split_text(text)
     return chunks
     
@@ -571,11 +612,11 @@ def get_conversational_chain(vector_store):
         conversation_chain = ConversationalRetrievalChain.from_llm(llm=llm, retriever=vector_store.as_retriever(), memory=memory)
         return conversation_chain
     except NotImplementedError as e:
-        st.warning("Check your Internet connection and Please try again by tapping on 'NEXT'")
+        st.error(" Please try again tap on 'NEXT'")
         return None
     except Exception as e:
         handle_model_interaction_error(e)
-        st.error("Please try again by tapping on 'NEXT'")
+        st.error(" Please try again tap on 'NEXT'")
         return None
 
 
